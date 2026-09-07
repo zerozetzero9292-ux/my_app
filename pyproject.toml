@@ -1,0 +1,6 @@
+[project]
+name = "my_flet_app"
+version = "1.0.0"
+dependencies = [
+    "flet",
+]
