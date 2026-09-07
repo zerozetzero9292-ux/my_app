@@ -35,7 +35,8 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --project "my_flet_app" --product "My App" --org "com.example"
+          # Команда 'yes' автоматически отвечает 'y' на все внутренние вопросы Flet CLI
+          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
