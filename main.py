@@ -11,7 +11,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 import flet as ft
 
 SAVE_FILE = "rpg_data.json"
-
 # Главная функция асинхронная
 async def main(page: ft.Page):
     page.title = "Task RPG: Protected Edition"
@@ -20,19 +19,21 @@ async def main(page: ft.Page):
     page.scroll = "adaptive"
     page.padding = 20
 
-    # 1. ЗАГРУЗКА И НАДЕЖНОЕ СОХРАНЕНИЕ ДАННЫХ
+    # 1. ЗАГРУЗКА И НАДЕЖНОЕ СОХРАНЕНИЕ ДАННЫХ (Добавлен ключ "active_tasks")
     if os.path.exists(SAVE_FILE):
         try:
             with open(SAVE_FILE, "r", encoding="utf-8") as f:
                 user_data = json.load(f)
                 if "history" not in user_data:
                     user_data["history"] = []
+                if "active_tasks" not in user_data:  # Восстановление квестов при перезапуске
+                    user_data["active_tasks"] = []
                 if "level" not in user_data or "xp" not in user_data:
                     raise ValueError  # Принудительно сбросить, если файл поврежден
         except Exception:
-            user_data = {"level": 1, "xp": 0, "xp_to_next": 100, "history": []}
+            user_data = {"level": 1, "xp": 0, "xp_to_next": 100, "history": [], "active_tasks": []}
     else:
-        user_data = {"level": 1, "xp": 0, "xp_to_next": 100, "history": []}
+        user_data = {"level": 1, "xp": 0, "xp_to_next": 100, "history": [], "active_tasks": []}
 
     def save_progress():
         try:
@@ -50,7 +51,6 @@ async def main(page: ft.Page):
 
     # Функция добавления записи в историю (с защитой от спецсимволов)
     def add_to_history(task_title, status):
-        # Безопасное экранирование текста, убираем системные переносы строк
         safe_title = str(task_title).strip().replace("\n", " ")
         current_time = datetime.now().strftime("%H:%M:%S")
         user_data["history"].insert(0, {"title": safe_title, "status": status, "time": current_time})
@@ -79,7 +79,7 @@ async def main(page: ft.Page):
         lvl_text.value = f"Уровень {user_data['level']}"
         grade_text.value = get_grade(user_data['level'])
         xp_text.value = f"{user_data['xp']} / {user_data['xp_to_next']} XP"
-        xp_progress.value = min(1.0, max(0.0, user_data["xp"] / user_data["xp_to_next"])) # Защита от деления на 0 или вылета полосы
+        xp_progress.value = min(1.0, max(0.0, user_data["xp"] / user_data["xp_to_next"]))
         save_progress()
         page.update()
 
@@ -104,19 +104,21 @@ async def main(page: ft.Page):
     # 3. СПИСОК ЗАДАЧ
     tasks_list = ft.Column(spacing=10, width=350)
 
-    # Список для отслеживания текущих задач (защита от дубликатов на экране)
-    active_tasks_titles = set()
+    # Список для отслеживания текущих задач
+    active_tasks_titles = set(user_data["active_tasks"])
 
     async def final_remove(task_container, task_title):
         if task_container in tasks_list.controls:
             tasks_list.controls.remove(task_container)
         if task_title in active_tasks_titles:
             active_tasks_titles.remove(task_title)
+
+        user_data["active_tasks"] = list(active_tasks_titles)
+        save_progress()
         page.update()
 
     # АНИМАЦИЯ 1: Плавное удаление с защитой от двойного клика
     async def animate_delete(task_container, checkbox_widget, delete_btn_widget, task_title):
-        # ЗАЩИТА: Блокируем кнопки, чтобы пользователь не спамил кликами во время анимации
         checkbox_widget.disabled = True
         delete_btn_widget.disabled = True
         task_container.opacity = 0.4
@@ -138,7 +140,6 @@ async def main(page: ft.Page):
 
     # АНИМАЦИЯ 2: Выполнение квеста с защитой от двойного клика
     async def animate_complete(task_container, checkbox_widget, delete_btn_widget, task_text, task_title):
-        # ЗАЩИТА: Блокируем элементы управления строки на время анимации
         checkbox_widget.disabled = True
         delete_btn_widget.disabled = True
         task_text.style = ft.TextStyle(decoration=ft.TextDecoration.LINE_THROUGH, color=ft.Colors.GREEN_200)
@@ -165,15 +166,36 @@ async def main(page: ft.Page):
     async def delete_click(e, checkbox_widget, delete_btn_widget, task_container, task_title):
         await animate_delete(task_container, checkbox_widget, delete_btn_widget, task_title)
 
+    # Вспомогательная функция отрисовки UI для сохраненных задач
+    def render_task_on_screen(title_text):
+        task_text = ft.Text(value=title_text, size=16, expand=True)
+
+        task_container = ft.Container(
+            content=ft.Row(vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            opacity=1, offset=ft.Offset(0, 0), height=50, width=350, border_radius=8,
+            padding=ft.Padding(10, 0, 5, 0), animate_opacity=200,
+            animate_offset=ft.Animation(250, ft.AnimationCurve.EASE_OUT),
+            animate_size=ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT),
+        )
+
+        checkbox = ft.Checkbox()
+        delete_btn = ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=ft.Colors.RED_300)
+
+        checkbox.on_change = lambda e: page.run_task(check_task, e, checkbox, delete_btn, task_text, task_container,
+                                                     title_text)
+        delete_btn.on_click = lambda e: page.run_task(delete_click, e, checkbox, delete_btn, task_container, title_text)
+
+        task_container.content.controls = [checkbox, task_text, delete_btn]
+        tasks_list.controls.append(task_container)
+
     # ДОБАВЛЕНИЕ ЗАДАЧИ
     async def add_task_click(e):
-        clean_title = new_task_input.value.strip()  # ЗАЩИТА: убираем лишние пробелы по краям
+        clean_title = new_task_input.value.strip()
 
         if not clean_title:
-            return  # ЗАЩИТА: игнорируем пустые строки и пробелы
+            return
 
         if clean_title in active_tasks_titles:
-            # ЗАЩИТА: предотвращаем добавление одинаковых квестов одновременно
             page.snack_bar = ft.SnackBar(ft.Text("Этот квест уже взят! ⚔️"), open=True, bgcolor=ft.Colors.RED_800)
             page.update()
             return
@@ -185,34 +207,13 @@ async def main(page: ft.Page):
         page.update()
 
         active_tasks_titles.add(clean_title)
-        task_text = ft.Text(value=clean_title, size=16, expand=True)
 
-        task_container = ft.Container(
-            content=ft.Row(vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            opacity=0, offset=ft.Offset(0, -0.2), height=50, width=350, border_radius=8,
-            padding=ft.Padding(10, 0, 5, 0), animate_opacity=200,
-            animate_offset=ft.Animation(250, ft.AnimationCurve.EASE_OUT),
-            animate_size=ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT),
-        )
+        user_data["active_tasks"] = list(active_tasks_titles)
+        save_progress()
 
-        # Создаем ссылки на виджеты заранее, чтобы передать их для будущей блокировки
-        checkbox = ft.Checkbox()
-        delete_btn = ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=ft.Colors.RED_300)
-
-        # Настраиваем события, прокидывая виджеты внутрь функций защиты
-        checkbox.on_change = lambda e: page.run_task(check_task, e, checkbox, delete_btn, task_text, task_container,
-                                                     clean_title)
-        delete_btn.on_click = lambda e: page.run_task(delete_click, e, checkbox, delete_btn, task_container,
-                                                      clean_title)
-
-        task_container.content.controls = [checkbox, task_text, delete_btn]
-        tasks_list.controls.append(task_container)
+        render_task_on_screen(clean_title)
         new_task_input.value = ""
         page.update()
-
-        task_container.opacity = 1
-        task_container.offset = ft.Offset(0, 0)
-        task_container.update()
 
     # 4. ИНТЕРФЕЙС ИСТОРИИ (Нижняя шторка)
     history_list = ft.ListView(expand=True, spacing=10, padding=10)
@@ -270,6 +271,10 @@ async def main(page: ft.Page):
         on_click=lambda e: page.run_task(show_history_click, e)
     )
 
+    # Автоматическая загрузка невыполненных задач на экран при запуске
+    for task_title in user_data["active_tasks"]:
+        render_task_on_screen(task_title)
+
     page.add(
         profile_card, history_btn, ft.Divider(height=20, color=ft.Colors.BLUE_GREY_800),
         ft.Container(content=tasks_list, padding=5),
@@ -279,4 +284,4 @@ async def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.run(main)
+    ft.app(target=main)
