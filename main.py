@@ -5,7 +5,7 @@ import os
 import asyncio
 from datetime import datetime
 
-# Отключаем строгую проверку SSL-сертификатов для первой загрузки утилит Flet на Windows
+# Отключаем строгую проверку SSL-сертификатовдля первой загрузки утилит Flet на Windows
 ssl._create_default_https_context = ssl._create_unverified_context
 
 import flet as ft
