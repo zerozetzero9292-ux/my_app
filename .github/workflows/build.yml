@@ -33,18 +33,20 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # Безопасно декодируем ключ
+      # Декодируем ключ из секретов
       - name: Decode Android Keystore
+        env:
+          RAW_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.jks
+          echo "$RAW_KEYSTORE_BASE64" | base64 --decode > release.jks
 
-      # Переносим номер сборки в переменную среды, чтобы Bash не путался в синтаксисе
+      # Сборка со специальными правильными флагами подписи Flet
       - name: Build Android APK
         env:
           BUILD_NUM: ${{ github.run_number }}
           KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example" --build-version "1.0.0" --build-number $BUILD_NUM --keystore-path "release.jks" --keystore-password "$KEY_PASS" --keystore-alias "my-key-alias"
+          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example" --build-version "1.0.0" --build-number $BUILD_NUM --android-signing-key-store "release.jks" --android-signing-key-store-password "$KEY_PASS" --android-signing-key-alias "my-key-alias"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
