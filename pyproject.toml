@@ -1,6 +1,5 @@
-[project]
-name = "my_flet_app"
-version = "1.0.0"
-dependencies = [
-    "flet",
-]
+[tool.flet.android.signing]
+key_store = "release.jks"
+key_store_password = "9381421"
+key_alias = "my-key-alias"
+key_password = "9381421"
