@@ -33,30 +33,19 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # Жестко очищаем и вырезаем переносы строк из секретного Base64
+      # Декодируем ключ из секретов в файл release.jks (как прописано в pyproject.toml)
       - name: Decode Android Keystore
         env:
           RAW_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > release.jks
 
-      # Оптимизированная сборка под одну архитектуру с выводом подробных логов
+      # Чистая сборка APK
       - name: Build Android APK
         env:
           BUILD_NUM: ${{ github.run_number }}
-          FLET_ANDROID_SIGNING_KEY_STORE: "release.jks"
-          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          FLET_ANDROID_SIGNING_KEY_ALIAS: "my-key-alias"
-          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          yes | flet build apk \
-            --project "my_flet_app" \
-            --product "My App" \
-            --org "com.example" \
-            --build-version "1.0.0" \
-            --build-number $BUILD_NUM \
-            --arch arm64-v8a \
-            --verbose
+          yes | flet build apk --build-number $BUILD_NUM --arch arm64-v8a
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
