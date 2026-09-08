@@ -1,4 +1,3 @@
-[tool.flet.android.signing]
 key_store = "release.jks"
 key_store_password = "9381421"
 key_alias = "my-key-alias"
