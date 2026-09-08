@@ -33,10 +33,25 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
+      # Шаг воссоздает постоянный файл ключа .jks из секретов GitHub на сервере перед сборкой
+      - name: Decode Android Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.jks
+
       - name: Build Android APK
         run: |
-          # Команда 'yes' автоматически отвечает 'y' на все внутренние вопросы Flet CLI
-          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example"
+          # В команду flet build apk добавлены:
+          # 1. Автоматический инкремент версии: --build-number ${{ github.run_number }}
+          # 2. Подключение секретных ключей подписи
+          yes | flet build apk \
+            --project "my_flet_app" \
+            --product "My App" \
+            --org "com.example" \
+            --build-version "1.0.0" \
+            --build-number ${{ github.run_number }} \
+            --keystore-path "release.jks" \
+            --keystore-password "${{ secrets.KEYSTORE_PASSWORD }}" \
+            --keystore-alias "my-key-alias"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
