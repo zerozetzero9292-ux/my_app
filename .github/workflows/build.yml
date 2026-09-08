@@ -33,15 +33,18 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # Воссоздаем файл ключа из секретов GitHub
+      # Безопасно декодируем ключ
       - name: Decode Android Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.jks
 
-      # Команда записана строго в одну строку для защиты от синтаксических ошибок Linux
+      # Переносим номер сборки в переменную среды, чтобы Bash не путался в синтаксисе
       - name: Build Android APK
+        env:
+          BUILD_NUM: ${{ github.run_number }}
+          KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example" --build-version "1.0.0" --build-number ${{ github.run_number }} --keystore-path "release.jks" --keystore-password "${{ secrets.KEYSTORE_PASSWORD }}" --keystore-alias "my-key-alias"
+          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example" --build-version "1.0.0" --build-number $BUILD_NUM --keystore-path "release.jks" --keystore-password "$KEY_PASS" --keystore-alias "my-key-alias"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
