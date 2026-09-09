@@ -33,24 +33,28 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # Изменено: Кладем декодированный файл ключа в точное место, где его ожидает Gradle
+      # Декодируем файл ключа и сохраняем его в корень проекта для простоты доступа
       - name: Decode Android Keystore
         env:
           RAW_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p build/flutter/android/app/
-          echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > build/flutter/android/app/release.jks
+          echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > release.jks
 
-      # Финальная чистая сборка APK
+      # Чистая сборка APK с автоматической версией и исправленными переменными
       - name: Build Android APK
         env:
-          BUILD_NUM: ${{ github.run_number }}
-          FLET_ANDROID_SIGNING_KEY_STORE: "release.jks"
-          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          FLET_ANDROID_SIGNING_KEY_ALIAS: "my-key-alias"
-          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          yes | flet build apk --project "my_flet_app" --product "My App" --org "com.example" --build-version "1.0.0" --build-number $BUILD_NUM --arch arm64-v8a
+          yes | flet build apk \
+            --project "my_flet_app" \
+            --product "Task RPG" \
+            --org "com.example.taskrpg" \
+            --build-version "1.0.${{ github.run_number }}" \
+            --build-number ${{ github.run_number }} \
+            --android-signing-key-store "release.jks" \
+            --android-signing-key-store-password "$KEY_PASS" \
+            --android-signing-key-alias "my-key-alias" \
+            --android-signing-key-password "$KEY_PASS"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
