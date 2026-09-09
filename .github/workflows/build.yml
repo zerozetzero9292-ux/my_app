@@ -19,7 +19,7 @@ jobs:
         with:
           channel: 'stable'
 
-      # Починка ошибки: ставим необходимые Linux-библиотеки интерфейса, чтобы Flet не падал
+      # Оставляем библиотеки, чтобы убрать ошибку [✗] Linux toolchain из прошлого шага
       - name: Install Linux Desktop Dependencies
         run: |
           sudo apt-get update
@@ -46,7 +46,7 @@ jobs:
         run: |
           echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > release.jks
 
-      # Финальная чистая сборка APK с автоматической версией
+      # Чистая сборка БЕЗ лишних флагов
       - name: Build Android APK
         env:
           KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -60,8 +60,7 @@ jobs:
             --android-signing-key-store "release.jks" \
             --android-signing-key-store-password "$KEY_PASS" \
             --android-signing-key-alias "my-key-alias" \
-            --android-signing-key-password "$KEY_PASS" \
-            --no-version-check
+            --android-signing-key-password "$KEY_PASS"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
