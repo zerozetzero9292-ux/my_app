@@ -8,63 +8,67 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
 
+      # 1. Настраиваем Java для компилятора Android
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Фиксируем стабильную версию Flutter, чтобы избежать конфликтов с Android SDK 37
+      # 2. Настраиваем Flutter (версия 3.22.2 стабильна для Flet)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: 'stable'
 
+      # 3. Ставим системные библиотеки Linux (гарантирует отсутствие конфликтов среды)
       - name: Install Linux Desktop Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libegl1-mesa-dev xorg-dev
 
+      # 4. Настраиваем среду Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # 5. Ставим Flet
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install "flet[all]"
 
+      # 6. Принимаем лицензии Android SDK
       - name: Accept Android Licenses
         run: |
           yes | flutter doctor --android-licenses
 
-      - name: Decode Android Keystore
-        env:
-          RAW_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      # 7. Собираем чистый APK без ключей (Flet сделает это без ошибок)
+      - name: Build Unsigned Android APK
         run: |
-          echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > release.jks
-
-      # Сборка с флагом --verbose, чтобы вытащить наружу реальную ошибку компиляции
-      - name: Build Android APK
-        env:
-          KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: |
-          yes | flet build apk \
+          flet build apk \
             --project "my_flet_app" \
             --product "Task RPG" \
             --org "com.example.taskrpg" \
             --build-version "1.0.${{ github.run_number }}" \
-            --build-number ${{ github.run_number }} \
-            --android-signing-key-store "release.jks" \
-            --android-signing-key-store-password "$KEY_PASS" \
-            --android-signing-key-alias "my-key-alias" \
-            --android-signing-key-password "$KEY_PASS" \
-            --verbose
+            --build-number ${{ github.run_number }}
 
+      # 8. ПОДПИСЬ APK: Берем готовый инструмент, который гарантирует подпись без участия Gradle
+      - name: Sign Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: build/apk
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: "my-key-alias"
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      # 9. Сохраняем уже ПОДПИСАННЫЙ APK файл в артефакты
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: my-flet-app-apk
-          path: build/apk/*.apk
+          name: task-rpg-signed-apk
+          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
