@@ -14,12 +14,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # Фиксируем стабильную версию Flutter, чтобы избежать конфликтов с Android SDK 37
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.22.2'
           channel: 'stable'
 
-      # Оставляем библиотеки, чтобы убрать ошибку [✗] Linux toolchain из прошлого шага
       - name: Install Linux Desktop Dependencies
         run: |
           sudo apt-get update
@@ -39,14 +40,13 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # Декодируем ключ в корень проекта
       - name: Decode Android Keystore
         env:
           RAW_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "${RAW_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > release.jks
 
-      # Чистая сборка БЕЗ лишних флагов
+      # Сборка с флагом --verbose, чтобы вытащить наружу реальную ошибку компиляции
       - name: Build Android APK
         env:
           KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -60,7 +60,8 @@ jobs:
             --android-signing-key-store "release.jks" \
             --android-signing-key-store-password "$KEY_PASS" \
             --android-signing-key-alias "my-key-alias" \
-            --android-signing-key-password "$KEY_PASS"
+            --android-signing-key-password "$KEY_PASS" \
+            --verbose
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
