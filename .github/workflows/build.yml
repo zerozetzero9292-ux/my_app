@@ -15,14 +15,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 2. Настраиваем Flutter (версия 3.22.2 стабильна для Flet)
+      # 2. ИСПРАВЛЕНО: Устанавливаем ровно ту версию Flutter, которую требует ваш Flet
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
+          flutter-version: '3.44.8'
           channel: 'stable'
 
-      # 3. Ставим системные библиотеки Linux (гарантирует отсутствие конфликтов среды)
+      # 3. Системные библиотеки Linux (гарантирует отсутствие конфликтов среды)
       - name: Install Linux Desktop Dependencies
         run: |
           sudo apt-get update
@@ -45,7 +45,7 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # 7. Собираем чистый APK без ключей (Flet сделает это без ошибок)
+      # 7. ИСПРАВЛЕНО: Собираем чистый APK без лишних 'yes |', так как версии теперь совпадают идеально
       - name: Build Unsigned Android APK
         run: |
           flet build apk \
@@ -55,7 +55,7 @@ jobs:
             --build-version "1.0.${{ github.run_number }}" \
             --build-number ${{ github.run_number }}
 
-      # 8. ПОДПИСЬ APK: Берем готовый инструмент, который гарантирует подпись без участия Gradle
+      # 8. Надежная подпись готового APK внешним инструментом
       - name: Sign Android APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
@@ -66,7 +66,7 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
 
-      # 9. Сохраняем уже ПОДПИСАННЫЙ APK файл в артефакты
+      # 9. Сохраняем подписанный APK в артефакты GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
