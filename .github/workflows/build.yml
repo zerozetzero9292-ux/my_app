@@ -15,7 +15,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 2. ИСПРАВЛЕНО: Устанавливаем ровно ту версию Flutter, которую требует ваш Flet
+      # 2. Настраиваем Flutter (версия полностью совпадает с требованиями Flet)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -45,7 +45,15 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
-      # 7. ИСПРАВЛЕНО: Собираем чистый APK без лишних 'yes |', так как версии теперь совпадают идеально
+      # 7. Автоматически определяем новейшую установленную версию Android Build Tools
+      - name: Setup Android Build Tools Version
+        shell: bash
+        run: |
+          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
+          echo "CURRENT_BUILD_TOOLS=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
+          echo "Найдена версия инструментов Android: $BUILD_TOOL_VERSION"
+
+      # 8. Собираем чистый APK без ключей (пройдет быстро и без ошибок)
       - name: Build Unsigned Android APK
         run: |
           flet build apk \
@@ -55,7 +63,7 @@ jobs:
             --build-version "1.0.${{ github.run_number }}" \
             --build-number ${{ github.run_number }}
 
-      # 8. Надежная подпись готового APK внешним инструментом
+      # 9. Надежная подпись готового APK с динамической подстановкой версии инструментов
       - name: Sign Android APK
         uses: r0adkll/sign-android-release@v1
         id: sign_app
@@ -65,8 +73,10 @@ jobs:
           alias: "my-key-alias"
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEYSTORE_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.CURRENT_BUILD_TOOLS }}
 
-      # 9. Сохраняем подписанный APK в артефакты GitHub
+      # 10. Сохраняем готовый подписанный APK в артефакты GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
